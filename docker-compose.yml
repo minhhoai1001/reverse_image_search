@@ -1,0 +1,60 @@
+version: '3.9'
+
+services:
+  vllm1:
+    image: vllm/vllm-openai:v0.6.5
+    container_name: vllm1
+    shm_size: '8g'
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - /home/nextai_2/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    command: >
+      --model Qwen/Qwen2-VL-2B-Instruct
+      --dtype bfloat16
+      --gpu-memory-utilization 0.98
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  vllm2:
+    image: vllm/vllm-openai:v0.6.5
+    container_name: vllm2
+    shm_size: '8g'
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - /home/nextai_2/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8001:8000"
+    command: >
+      --model BAAI/bge-base-en-v1.5
+      --task embed
+    depends_on:
+      vllm1:
+        condition: service_healthy
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6633:6333"
+    volumes:
+      - ${PWD}/qdrant_data:/qdrant/storage
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_load_balancer
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      vllm1:
+        condition: service_healthy
