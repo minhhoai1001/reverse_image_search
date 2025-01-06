@@ -1,0 +1,10 @@
+qdrant:
+  host: localhost
+  port: 6333
+  text_collection: text_embedded
+  image_collection: image_embedded
+
+model:
+  vlm: qwen2_vl
+  text: bge-base-en-v1.5
+  img: dinov2-base

@@ -1,4 +1,4 @@
-import numpy as np
+import requests, io, base64
 from PIL import Image
 from numpy.linalg import norm
 from abc import ABC, abstractmethod
@@ -17,8 +17,37 @@ class DinoV2(HuggingFaceEngine):
     def __init__(self, model_name='facebook/dinov2-base'):
         super(DinoV2, self).__init__(model_name)
     
+    def create_from_image(self, image: Image.Image):
+        return image
+
+    def create_from_string(self, input_string: str):
+        # Check if the input is a URL or a file path
+        if input_string.startswith("http://") or input_string.startswith("https://"):
+            # If it's a URL, fetch the image content
+            response = requests.get(input_string)
+            image = Image.open(io.BytesIO(response.content))
+        else:
+            # Otherwise, assume it's a file path
+            image = Image.open(input_string)
+        
+        return image
+
+    def create_from_base64(self, input_base64: bytes):
+        # Handle base64 input (assuming input is already base64-encoded)
+        image_data = base64.b64decode(input_base64)
+        image = Image.open(io.BytesIO(image_data))
+        return image
+
     def create(self, input):
-        image   = Image.open(input)
+        if isinstance(input, Image.Image):
+            image = self.create_from_image(input)
+        elif isinstance(input, str):
+            image = self.create_from_string(input)
+        elif isinstance(input, bytes):
+            image = self.create_from_base64(input)
+        else:
+            raise ValueError("Unsupported input type")
+
         inputs  = self.processor(images=image, return_tensors="pt")
         outputs = self.model(**inputs)
         embeddings = outputs.last_hidden_state

@@ -1,7 +1,10 @@
-import os
+import os, io
 import base64
+from PIL import Image
 from openai import OpenAI
 from abc import ABC, abstractmethod
+
+MAX_WIDTH = 720
 
 class vLLMEngine(ABC):
     def __init__(self):
@@ -15,7 +18,42 @@ class vLLMEngine(ABC):
         pass
 
 class Qwen2VL(vLLMEngine):
+    def create_from_image(self, image: Image.Image):
+        # Check if the width is greater than 1280
+        if image.width > MAX_WIDTH:
+            # Calculate the new height while maintaining the aspect ratio
+            ratio = MAX_WIDTH / image.width
+            new_width = MAX_WIDTH
+            new_height = int(image.height * ratio)
+            # Resize the image
+            image = image.resize((new_width, new_height), Image.LANCZOS)
+
+        # Convert the PIL image to a base64-encoded string
+        buffered = io.BytesIO()
+        image.save(buffered, format="PNG")
+        base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return base64_image
+
+    def create_from_string(self, input_string: str):
+        # Assume the input string is a file path or URL
+        with open(input_string, "rb") as image_file:
+            base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+        return base64_image
+
+    def create_from_base64(self, input_base64: bytes):
+        # Handle base64 input (assuming input is already base64-encoded)
+        return input_base64.decode("utf-8")
+
     def create(self, input):
+        if isinstance(input, Image.Image):
+            base64_image = self.create_from_image(input)
+        elif isinstance(input, str):
+            base64_image = self.create_from_string(input)
+        elif isinstance(input, bytes):
+            base64_image = self.create_from_base64(input)
+        else:
+            raise ValueError("Unsupported input type")
+
         messages = [
             {
                 "role": "user",
@@ -26,7 +64,7 @@ class Qwen2VL(vLLMEngine):
                     },
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{input}"},
+                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
                     },
                 ],
             }
