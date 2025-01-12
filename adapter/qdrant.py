@@ -1,8 +1,7 @@
-import uuid
 import qdrant_client.models as models
 from qdrant_client import QdrantClient
 
-class QdrantEngine():
+class QdrantAdapter():
     def __init__(self, host:str="localhost:6333") -> None:
         self.host = host
         try:
@@ -11,18 +10,29 @@ class QdrantEngine():
             print('error connection database')
             self.client = None
 
-    def create_collection(self, collection_name, size):
+    def create_collection(self, collection_name, size, hybird=False):
         info = self.client.collection_exists(collection_name=f"{collection_name}")
         if info:
             return None
         
-        info = self.client.create_collection(
-            collection_name=collection_name,
-            vectors_config=models.VectorParams(size=size, distance=models.Distance.COSINE),
-        )
+        if hybird:
+            info = self.client.create_collection(
+                collection_name=collection_name,
+                vectors_config={
+                    "dense": models.VectorParams(size=size, distance=models.Distance.COSINE),
+                },
+                sparse_vectors_config={
+                    "sparse": models.SparseVectorParams(),
+                },
+            )
+        else:
+            info = self.client.create_collection(
+                collection_name=collection_name,
+                vectors_config=models.VectorParams(size=size, distance=models.Distance.COSINE),
+            )
 
         return info
-
+    
     def upsert_points(self, collection_name:str, id:str, payload:dict, feature):
         vector_data = models.PointStruct(
             id=id,
@@ -65,3 +75,28 @@ class QdrantEngine():
         if info:
             return info
         return None
+    
+    def query_points(self, collection_name, embed, limit=5):
+        dense = embed["dense"]
+        sparse = embed["sparse"]
+        hybrid = self.client.query_points(
+            collection_name=collection_name,
+            prefetch=[
+                models.Prefetch(
+                    query=models.SparseVector(indices=sparse["indices"], values=sparse["values"]),
+                    using="sparse",
+                    limit=limit,
+                ),
+                models.Prefetch(
+                    query=dense,  # <-- dense vector
+                    using="dense",
+                    limit=limit,
+                ),
+            ],
+            query=models.FusionQuery(fusion=models.Fusion.RRF),
+        )
+        
+        if hybrid:
+            return hybrid.points
+        else:
+            return None

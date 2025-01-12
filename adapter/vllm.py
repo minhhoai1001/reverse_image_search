@@ -1,4 +1,4 @@
-import os, io
+import io
 import base64
 from PIL import Image
 from openai import OpenAI
@@ -6,10 +6,10 @@ from abc import ABC, abstractmethod
 
 MAX_WIDTH = 720
 
-class vLLMEngine(ABC):
+class vLLMAdapter(ABC):
     def __init__(self):
         self.client = OpenAI(
-            base_url="http://localhost:8080/v1",
+            base_url="http://localhost:8000/v1",
             api_key="EMPTY",
         )
 
@@ -17,7 +17,7 @@ class vLLMEngine(ABC):
     def create(self, input):
         pass
 
-class Qwen2VL(vLLMEngine):
+class Qwen2VL(vLLMAdapter):
     def create_from_image(self, image: Image.Image):
         # Check if the width is greater than 1280
         if image.width > MAX_WIDTH:
@@ -83,15 +83,16 @@ class Qwen2VL(vLLMEngine):
             print(f"An unexpected error occurred: {e}")
             return None
 
-class BGEBASE(vLLMEngine):
+class BGEBASE(vLLMAdapter):
     def create(self, input):
         try:
             completion = self.client.embeddings.create(
-                model="BAAI/bge-base-en-v1.5",
+                # model="BAAI/bge-base-en-v1.5",
+                model="BAAI/bge-m3",
                 input=input,
                 encoding_format="float"
             )
-
+            print("completion", completion)
             embeded = completion.data[0].embedding
             return embeded
         except Exception as e:
@@ -100,7 +101,7 @@ class BGEBASE(vLLMEngine):
 
 class vLLMFactory():
     @staticmethod
-    def get_engine(model_type: str) -> vLLMEngine:
+    def get_engine(model_type: str) -> vLLMAdapter:
         models = {
             "bge-base-en-v1.5": BGEBASE(),
             "qwen2_vl": Qwen2VL(),
@@ -115,13 +116,13 @@ if __name__ == "__main__":
         data = engine1.create(input1)
         print("Size vector 1:", len(data))
     
-    engine2 = factory.get_engine("qwen2_vl")
-    if engine2:
-        image_path = "/home/nextai_2/vlm/images.jpg"
+    # engine2 = factory.get_engine("qwen2_vl")
+    # if engine2:
+    #     image_path = "/home/nextai_2/vlm/images.jpg"
 
-        # Convert the image to a Base64 string
-        with open(image_path, "rb") as image_file:
-            base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+    #     # Convert the image to a Base64 string
+    #     with open(image_path, "rb") as image_file:
+    #         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
-        data = engine2.create(base64_image)
-        print("Text:", data)
+    #     data = engine2.create(base64_image)
+    #     print("Text:", data)

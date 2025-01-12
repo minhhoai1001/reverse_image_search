@@ -1,6 +1,6 @@
 import requests, io, base64
+from pathlib import Path
 from PIL import Image
-from numpy.linalg import norm
 from abc import ABC, abstractmethod
 from transformers import AutoImageProcessor, AutoModel
 
@@ -16,6 +16,17 @@ class HuggingFaceEngine(ABC):
 class DinoV2(HuggingFaceEngine):
     def __init__(self, model_name='facebook/dinov2-base'):
         super(DinoV2, self).__init__(model_name)
+    
+    def is_path(string: str) -> bool:
+        try:
+            # Check if the string is a valid file path
+            path = Path(string)
+            # Heuristic: Paths often contain separators or extensions
+            if path.is_absolute() or any(part in string for part in ('/', '\\', '.')):
+                return True
+            return False
+        except Exception:
+            return False
     
     def create_from_image(self, image: Image.Image):
         return image
@@ -42,7 +53,11 @@ class DinoV2(HuggingFaceEngine):
         if isinstance(input, Image.Image):
             image = self.create_from_image(input)
         elif isinstance(input, str):
-            image = self.create_from_string(input)
+            if self.is_path(input):
+                image = self.create_from_string(input)
+            else:
+                raise ValueError("Unsupported input type")
+                
         elif isinstance(input, bytes):
             image = self.create_from_base64(input)
         else:

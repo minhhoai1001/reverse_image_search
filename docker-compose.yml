@@ -1,9 +1,9 @@
 version: '3.9'
 
 services:
-  vllm1:
+  vllm:
     image: vllm/vllm-openai:v0.6.5
-    container_name: vllm1
+    container_name: vllm
     shm_size: '8g'
     runtime: nvidia
     environment:
@@ -22,23 +22,17 @@ services:
       timeout: 5s
       retries: 5
 
-  vllm2:
-    image: vllm/vllm-openai:v0.6.5
-    container_name: vllm2
-    shm_size: '8g'
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+  fastapi:
+    image: fastapi_server:1.0
+    container_name: fastapi
+    ports:
+      - "8001:8001"
     volumes:
       - /home/nextai_2/.cache/huggingface:/root/.cache/huggingface
-    ports:
-      - "8001:8000"
-    command: >
-      --model BAAI/bge-base-en-v1.5
-      --task embed
     depends_on:
-      vllm1:
+      vllm:
         condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8001
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -48,13 +42,13 @@ services:
     volumes:
       - ${PWD}/qdrant_data:/qdrant/storage
 
-  nginx:
-    image: nginx:latest
-    container_name: nginx_load_balancer
-    ports:
-      - "8080:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      vllm1:
-        condition: service_healthy
+  # nginx:
+  #   image: nginx:latest
+  #   container_name: nginx_load_balancer
+  #   ports:
+  #     - "8080:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     vllm1:
+  #       condition: service_healthy
